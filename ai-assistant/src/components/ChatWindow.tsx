@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, useRef, useEffect } from 'react';
 import Assistant from '../assistants/gemini';
 import ReactMarkdown from 'react-markdown';
 import './chat-window.css';
@@ -8,6 +8,17 @@ export const ChatWindow = () => {
     const [messages, setMessages] = useState<{ role: string, content: string }[]>([]);
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     function handleSendMessage() {
         setIsLoading(true);
@@ -29,10 +40,18 @@ export const ChatWindow = () => {
             .finally(() => {
                 setIsLoading(false);
             })
+        inputRef.current?.focus();
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+        }
     }
 
     function handleChange(event: ChangeEvent<HTMLTextAreaElement>): void {
-        setMessage(event.target.value)
+        setMessage(event.target.value);
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
+        }
     }
 
     return (
@@ -63,11 +82,14 @@ export const ChatWindow = () => {
                             </div>
                         ))
                 }
+                <div ref={messagesEndRef} />
             </div>
             <div className='input-container'>
                 <textarea
+                    ref={inputRef}
                     placeholder="Ask me anything"
-                    rows={4}
+                    rows={1}
+                    style={{ overflow: 'hidden' }}
                     className='input'
                     onChange={handleChange}
                     value={message}
