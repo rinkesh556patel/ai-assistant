@@ -4,7 +4,7 @@ const ai = new GoogleGenAI({
     apiKey: import.meta.env.VITE_GEMINI_API_KEY
 });
 
-async function Assistant(content: string): Promise<string> {
+async function Chat(content: string): Promise<string> {
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: content
@@ -12,4 +12,15 @@ async function Assistant(content: string): Promise<string> {
     return response.text || "Sorry, something went wrong!!"
 }
 
-export default Assistant
+async function* ChatStreaming(content: string): AsyncGenerator<string> {
+    const response = await ai.models.generateContentStream({
+        model: "gemini-2.5-flash",
+        contents: content
+    })
+
+    for await (const chunk of response) {
+        yield chunk.text || ""
+    }   
+}
+
+export {  Chat, ChatStreaming }

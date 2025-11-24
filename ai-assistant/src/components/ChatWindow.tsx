@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, useRef, useEffect } from 'react';
-import Assistant from '../assistants/gemini';
+import { ChatStreaming } from '../assistants/gemini';
 import ReactMarkdown from 'react-markdown';
 import './chat-window.css';
 import { Atom } from 'react-loading-indicators';
@@ -20,26 +20,53 @@ export const ChatWindow = () => {
         scrollToBottom();
     }, [messages]);
 
-    function handleSendMessage() {
+    async function handleSendMessage() {
         setIsLoading(true);
         setMessages((prevMessages) => [...prevMessages, {
             'role': 'user',
             'content': message
         }]);
+        const currentMessage = message;
         setMessage('');
-        Assistant(message)
-            .then((response) => {
-                setMessages((prevMessages) => [...prevMessages, {
-                    'role': 'assistant',
-                    'content': response
-                }]);
-            })
-            .catch((error) => {
-                console.error(error);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            })
+
+        try {
+            const stream = ChatStreaming(currentMessage);
+
+            let fullResponse = '';
+            let isFirstChunk = true;
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+
+                if (isFirstChunk) {
+                    isFirstChunk = false;
+                    setIsLoading(false);
+                    setMessages((prevMessages) => [...prevMessages, {
+                        'role': 'assistant',
+                        'content': fullResponse
+                    }]);
+                } else {
+                    setMessages((prevMessages) => {
+                        const newMessages = [...prevMessages];
+                        const lastMessage = newMessages[newMessages.length - 1];
+                        if (lastMessage.role === 'assistant') {
+                            lastMessage.content = fullResponse;
+                        }
+                        return newMessages;
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            setIsLoading(false);
+            setMessages((prevMessages) => [...prevMessages, {
+                'role': 'assistant',
+                'content': 'Sorry, something went wrong!!'
+            }]);
+        } finally {
+            setIsLoading(false);
+        }
+
         inputRef.current?.focus();
         if (inputRef.current) {
             inputRef.current.style.height = 'auto';
@@ -62,26 +89,26 @@ export const ChatWindow = () => {
             </div>
             <div className="chat-container">
                 {
-                    isLoading ?
-                        <div className='loader'>
-                            <Atom color="#000" size="small" text="" textColor="#013974" />
-                        </div>
-                        :
-                        messages.map((message, index) => (
-                            <div
-                                key={index}
-                                className={`message-container ${message.role === "user" ? "user" : "assistant"
+                    messages.map((message, index) => (
+                        <div
+                            key={index}
+                            className={`message-container ${message.role === "user" ? "user" : "assistant"
+                                }`}
+                        >
+                            <p
+                                className={`message ${message.role === "user" ? "user" : "assistant"
                                     }`}
                             >
-                                <p
-                                    className={`message ${message.role === "user" ? "user" : "assistant"
-                                        }`}
-                                >
-                                    <ReactMarkdown>{message.content}</ReactMarkdown>
-                                </p>
-                            </div>
-                        ))
+                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                            </p>
+                        </div>
+                    ))
                 }
+                {isLoading && (
+                    <div className='loader'>
+                        <Atom color="#000" size="small" text="" textColor="#013974" />
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
             <div className='input-container'>
